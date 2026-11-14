@@ -83,3 +83,57 @@ class GitHubClient(BaseClient):
             "source": "github",
             "raw": raw,
         }
+
+    def approve_pull_request(
+        self,
+        owner: str,
+        repo: str,
+        number: int,
+        body: str = "Approved via DevDesk automation",
+    ) -> dict[str, Any]:
+        """Submit an APPROVE review."""
+        return self.request(
+            "POST",
+            f"/repos/{owner}/{repo}/pulls/{number}/reviews",
+            json={"event": "APPROVE", "body": body},
+        )
+
+    def dismiss_review(
+        self,
+        owner: str,
+        repo: str,
+        number: int,
+        review_id: int,
+        message: str = "Dismissed via DevDesk",
+    ) -> dict[str, Any]:
+        return self.request(
+            "PUT",
+            f"/repos/{owner}/{repo}/pulls/{number}/reviews/{review_id}/dismissals",
+            json={"message": message, "event": "DISMISS"},
+        )
+
+    def remove_requested_reviewers(
+        self,
+        owner: str,
+        repo: str,
+        number: int,
+        reviewers: list[str],
+    ) -> dict[str, Any]:
+        """Remove users from the requested reviewers list."""
+        return self.request(
+            "DELETE",
+            f"/repos/{owner}/{repo}/pulls/{number}/requested_reviewers",
+            json={"reviewers": reviewers},
+        )
+
+    def get_combined_status(self, owner: str, repo: str, ref: str) -> dict[str, Any]:
+        try:
+            return self.get(f"/repos/{owner}/{repo}/commits/{ref}/status")
+        except IntegrationError:
+            return {"state": "unknown"}
+
+    def parse_repo(self, full_name: str) -> tuple[str, str]:
+        parts = (full_name or "").split("/")
+        if len(parts) >= 2:
+            return parts[0], parts[1]
+        return "", ""

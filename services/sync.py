@@ -186,6 +186,7 @@ class SyncService(QObject):
                             f"{issue['key']}: {issue['summary']}",
                             category="jira_overdue",
                             source_id=f"overdue:{issue['key']}",
+                            url=issue.get("url") or "",
                         )
             return payload
         finally:
@@ -225,7 +226,29 @@ class SyncService(QObject):
                         f"#{pr['number']}: {pr['title']}",
                         category="pr_review",
                         source_id=f"gh-review:{pr.get('html_url') or pr['number']}",
+                        url=pr.get("html_url") or "",
                     )
+
+            # PR automation (approve / remove reviewer)
+            try:
+                from services.pr_automation import PRAutomationService
+                me = {}
+                try:
+                    me = client.test_connection()
+                except Exception:
+                    me = {}
+                auto = PRAutomationService(
+                    storage=self.storage,
+                    config=self.config.raw if hasattr(self.config, "raw") else {},
+                    github_client=client,
+                    my_login=me.get("login") or "",
+                    notifications=self.notifications,
+                )
+                actions = auto.process_github_prs(review + mine)
+                payload["automation_actions"] = len(actions)
+            except Exception as exc:
+                logger.exception("PR automation failed: %s", exc)
+
             return payload
         finally:
             client.close()

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QTabWidget,
     QTextEdit,
+    QPlainTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -47,6 +48,7 @@ class SettingsPage(QWidget):
         tabs.addTab(self._build_github(), "GitHub")
         tabs.addTab(self._build_bitbucket(), "Bitbucket")
         tabs.addTab(self._build_working_time(), "Working Time")
+        tabs.addTab(self._build_automation(), "PR Automation")
         layout.addWidget(tabs, stretch=1)
 
         row = QHBoxLayout()
@@ -150,6 +152,71 @@ class SettingsPage(QWidget):
         form.addRow("Daily target", self.wt_target)
         return w
 
+    def _build_automation(self) -> QWidget:
+        w = QWidget()
+        form = QFormLayout(w)
+
+        note = QLabel(
+            "Rules are stored in AppData/config.json. "
+            "Keep Dry-run ON until you verify the audit log."
+        )
+        note.setWordWrap(True)
+        form.addRow(note)
+
+        self.chk_auto_enabled = QCheckBox("Enable PR automation")
+        form.addRow(self.chk_auto_enabled)
+        self.chk_auto_dry = QCheckBox("Dry-run only (log + notify, no API write)")
+        form.addRow(self.chk_auto_dry)
+
+        form.addRow(QLabel("— Auto Approve —"))
+        self.chk_approve = QCheckBox("Enable auto-approve")
+        form.addRow(self.chk_approve)
+        self.chk_approve_checks = QCheckBox("Require CI checks to pass")
+        form.addRow(self.chk_approve_checks)
+        self.chk_approve_skip_draft = QCheckBox("Skip draft PRs")
+        form.addRow(self.chk_approve_skip_draft)
+        self.chk_approve_skip_own = QCheckBox("Skip my own PRs")
+        form.addRow(self.chk_approve_skip_own)
+        self.approve_title_exclude = QLineEdit()
+        self.approve_title_exclude.setPlaceholderText("WIP, DO NOT MERGE, DRAFT")
+        form.addRow("Title exclude keywords", self.approve_title_exclude)
+        self.approve_allow = QLineEdit()
+        self.approve_allow.setPlaceholderText("org/repo, org/other-*  (empty = all)")
+        form.addRow("Repo allowlist", self.approve_allow)
+        self.approve_block = QLineEdit()
+        self.approve_block.setPlaceholderText("org/dangerous-repo")
+        form.addRow("Repo blocklist", self.approve_block)
+
+        form.addRow(QLabel("— Remove me as reviewer —"))
+        self.chk_remove = QCheckBox("Enable auto remove me as reviewer")
+        form.addRow(self.chk_remove)
+        self.chk_remove_draft = QCheckBox("When PR is draft")
+        form.addRow(self.chk_remove_draft)
+        self.chk_remove_commits = QCheckBox("When new commits after my review (flag)")
+        form.addRow(self.chk_remove_commits)
+        self.remove_keywords = QLineEdit()
+        self.remove_keywords.setPlaceholderText("WIP, DO NOT MERGE")
+        form.addRow("Title keywords", self.remove_keywords)
+        self.remove_allow = QLineEdit()
+        self.remove_allow.setPlaceholderText("optional allowlist")
+        form.addRow("Repo allowlist", self.remove_allow)
+        self.remove_block = QLineEdit()
+        form.addRow("Repo blocklist", self.remove_block)
+
+        self.chk_native_toast = QCheckBox("Native OS toast (Windows Toast / Linux notify-send)")
+        form.addRow(self.chk_native_toast)
+
+        btn_log = QPushButton("Open automation log folder")
+        btn_log.setObjectName("secondary")
+        btn_log.clicked.connect(self._open_log_folder)
+        form.addRow(btn_log)
+        return w
+
+    def _open_log_folder(self) -> None:
+        from core.platform import Platform
+        Platform.open_folder(self._app.storage.base_dir)
+
+
     def _load(self) -> None:
         cfg = self._app.config
         self.chk_start_minimized.setChecked(cfg.start_minimized)
@@ -181,6 +248,28 @@ class SettingsPage(QWidget):
             self.bb_token.setPlaceholderText("•••••••• (saved in keyring)")
 
         self.wt_target.setValue(int(cfg.get("working_time.daily_target_hours", 8)))
+
+        auto = cfg.get("pr_automation") or {}
+        if not isinstance(auto, dict):
+            auto = {}
+        self.chk_auto_enabled.setChecked(bool(auto.get("enabled", False)))
+        self.chk_auto_dry.setChecked(bool(auto.get("dry_run", True)))
+        ap = auto.get("approve") or {}
+        self.chk_approve.setChecked(bool(ap.get("enabled", False)))
+        self.chk_approve_checks.setChecked(bool(ap.get("require_checks_pass", True)))
+        self.chk_approve_skip_draft.setChecked(bool(ap.get("skip_draft", True)))
+        self.chk_approve_skip_own.setChecked(bool(ap.get("skip_own_prs", True)))
+        self.approve_title_exclude.setText(", ".join(ap.get("title_exclude") or []))
+        self.approve_allow.setText(", ".join(ap.get("repo_allowlist") or []))
+        self.approve_block.setText(", ".join(ap.get("repo_blocklist") or []))
+        rm = auto.get("remove_reviewer") or {}
+        self.chk_remove.setChecked(bool(rm.get("enabled", False)))
+        self.chk_remove_draft.setChecked(bool(rm.get("on_draft", True)))
+        self.chk_remove_commits.setChecked(bool(rm.get("on_new_commits_after_review", False)))
+        self.remove_keywords.setText(", ".join(rm.get("on_title_keywords") or []))
+        self.remove_allow.setText(", ".join(rm.get("repo_allowlist") or []))
+        self.remove_block.setText(", ".join(rm.get("repo_blocklist") or []))
+        self.chk_native_toast.setChecked(bool(cfg.get("notifications.native_toast", True)))
 
     def _save(self) -> None:
         cfg = self._app.config
@@ -225,6 +314,37 @@ class SettingsPage(QWidget):
             self.bb_token.setPlaceholderText("•••••••• (saved in keyring)")
 
         cfg.set("working_time.daily_target_hours", float(self.wt_target.value()))
+
+        def _split_csv(s: str) -> list:
+            return [x.strip() for x in s.split(",") if x.strip()]
+
+        cfg.set("pr_automation", {
+            "enabled": self.chk_auto_enabled.isChecked(),
+            "dry_run": self.chk_auto_dry.isChecked(),
+            "approve": {
+                "enabled": self.chk_approve.isChecked(),
+                "require_checks_pass": self.chk_approve_checks.isChecked(),
+                "skip_draft": self.chk_approve_skip_draft.isChecked(),
+                "skip_own_prs": self.chk_approve_skip_own.isChecked(),
+                "title_exclude": _split_csv(self.approve_title_exclude.text()),
+                "repo_allowlist": _split_csv(self.approve_allow.text()),
+                "repo_blocklist": _split_csv(self.approve_block.text()),
+                "max_files_changed": 0,
+            },
+            "remove_reviewer": {
+                "enabled": self.chk_remove.isChecked(),
+                "on_new_commits_after_review": self.chk_remove_commits.isChecked(),
+                "on_draft": self.chk_remove_draft.isChecked(),
+                "on_title_keywords": _split_csv(self.remove_keywords.text()),
+                "repo_allowlist": _split_csv(self.remove_allow.text()),
+                "repo_blocklist": _split_csv(self.remove_block.text()),
+            },
+        })
+        cfg.set("notifications.native_toast", self.chk_native_toast.isChecked())
+        # refresh notification service config
+        if getattr(self._app, "notification_service", None):
+            self._app.notification_service.update_config(cfg.raw)
+
         cfg.save()
 
         from ui.styles import get_stylesheet

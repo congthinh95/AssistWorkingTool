@@ -258,13 +258,11 @@ class Platform:
 
     @staticmethod
     def show_notification(title: str, message: str, icon: Optional[str] = None) -> bool:
-        """Show a native desktop notification. Best-effort via Qt or platform tools."""
-        # Actual Qt notification is handled higher up; this is a fallback.
+        """Show a native desktop notification. Best-effort fallback (Qt handles primary path)."""
         try:
             if Platform.is_linux():
-                # Try notify-send
                 if shutil.which("notify-send"):
-                    cmd = ["notify-send", title, message]
+                    cmd = ["notify-send", "--app-name=DevDesk", title, message]
                     if icon:
                         cmd.extend(["-i", icon])
                     subprocess.Popen(
@@ -273,7 +271,26 @@ class Platform:
                         stderr=subprocess.DEVNULL,
                     )
                     return True
-            # Windows toast would require additional packages; rely on Qt.
+            if Platform.is_windows():
+                # Minimal balloon via PowerShell if available
+                def esc(s: str) -> str:
+                    return s.replace("'", "''")
+                ps = (
+                    f"[reflection.assembly]::loadwithpartialname('System.Windows.Forms') | Out-Null;"
+                    f"$n = New-Object System.Windows.Forms.NotifyIcon;"
+                    f"$n.Icon = [System.Drawing.SystemIcons]::Information;"
+                    f"$n.Visible = $true;"
+                    f"$n.ShowBalloonTip(5000, '{esc(title)}', '{esc(message)}', "
+                    f"[System.Windows.Forms.ToolTipIcon]::Info);"
+                    f"Start-Sleep -Seconds 6; $n.Dispose()"
+                )
+                subprocess.Popen(
+                    ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                return True
             return False
         except Exception as exc:
             logger.debug("Platform notification fallback failed: %s", exc)

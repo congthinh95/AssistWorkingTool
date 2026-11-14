@@ -167,6 +167,28 @@ class Storage:
                 "default_terminal": "",
                 "projects": [],
             },
+            "pr_automation": {
+                "enabled": False,
+                "dry_run": True,
+                "approve": {
+                    "enabled": False,
+                    "require_checks_pass": True,
+                    "skip_draft": True,
+                    "skip_own_prs": True,
+                    "title_exclude": ["WIP", "DO NOT MERGE", "DRAFT"],
+                    "repo_allowlist": [],
+                    "repo_blocklist": [],
+                    "max_files_changed": 0,
+                },
+                "remove_reviewer": {
+                    "enabled": False,
+                    "on_new_commits_after_review": False,
+                    "on_draft": True,
+                    "on_title_keywords": ["WIP", "DO NOT MERGE"],
+                    "repo_allowlist": [],
+                    "repo_blocklist": [],
+                },
+            },
         }
         data = self._load_json(self._path("config.json"), default)
         # Ensure version field exists
@@ -256,3 +278,25 @@ class Storage:
         else:
             for p in self.cache_dir.glob("*.json"):
                 p.unlink()
+
+
+    # ------------------------------------------------------------------
+    # PR automation audit log
+    # ------------------------------------------------------------------
+
+    def load_automation_log(self) -> dict[str, Any]:
+        default = {"version": 1, "entries": []}
+        return self._load_json(self._path("automation_log.json"), default)
+
+    def save_automation_log(self, data: dict[str, Any]) -> None:
+        data["version"] = 1
+        # Keep last 500 entries
+        entries = data.get("entries") or []
+        if len(entries) > 500:
+            data["entries"] = entries[-500:]
+        self._atomic_write(self._path("automation_log.json"), data)
+
+    def append_automation_log(self, entry: dict[str, Any]) -> None:
+        data = self.load_automation_log()
+        data.setdefault("entries", []).append(entry)
+        self.save_automation_log(data)
