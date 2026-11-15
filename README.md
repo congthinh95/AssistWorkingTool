@@ -2,42 +2,73 @@
 
 Lightweight cross-platform desktop productivity assistant for software developers.
 
-Runs in the system tray and provides:
+DevDesk runs in the system tray and helps track:
 
-- **Jira** task monitoring (assigned / overdue / stale)
-- **GitHub** & **Bitbucket** Pull Request monitoring
-- **Working Time** tracker (check-in, breaks, daily target)
-- **Quick Access** shortcuts for folders, files, projects, URLs
-- **Developer Tools** launcher (apps + projects)
-- Local notifications and a daily overview dashboard
-- Global search (`Ctrl+K`) over cached data
+- Jira issues and overdue work
+- GitHub and Bitbucket pull requests
+- Working time / daily focus sessions
+- Quick-access folders, projects, URLs, and apps
+- Global search and dashboard insights
 
-## Principles
+## Project principles
 
 - Native desktop only (PySide6 / Qt Widgets)
-- Local-first – no web UI, no embedded browser, no SQL
-- Credentials in the system **keyring** only
+- Local-first, no web UI or embedded browser
+- Credentials stored in OS keyring only
 - Single Python codebase for Windows 10/11 and Linux
+
+## Repository structure
+
+- `core/` – config, storage, logger, platform abstraction, app bootstrap
+- `services/` – sync, notifications, quick access, working time, PR automation
+- `integrations/` – GitHub, Bitbucket, Jira clients
+- `ui/` – tray, windows, pages, dialogs, styling
+- `scripts/` – build and packaging automation
+- `docs/` – usage guide, architecture, design docs, packaging notes
+- `tests/` – regression and feature tests
 
 ## Requirements
 
 - Python 3.11+
-- System tray support
-- Packages: `PySide6`, `httpx`, `keyring`, `pytest` (dev)
-
-## Quick start
+- System tray support on desktop OS
+- Install dependencies:
 
 ```bash
-cd devdesk
 python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-PYTHONPATH=. python main.py
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-Starts minimized to the tray by default. Double-click the tray icon or use the context menu.
+## Run locally
 
-### Keyboard shortcuts
+### Linux / macOS
+
+```bash
+source .venv/bin/activate
+export PYTHONPATH=$(pwd)
+python main.py
+```
+
+### Windows
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+set PYTHONPATH=%CD%
+python main.py
+```
+
+Or use the repo launcher:
+
+```bash
+./run.sh
+```
+
+```bat
+run.bat
+```
+
+## Keyboard shortcuts
 
 | Shortcut | Action |
 |----------|--------|
@@ -47,39 +78,63 @@ Starts minimized to the tray by default. Double-click the tray icon or use the c
 
 ## Configuration
 
-- **Windows:** `%APPDATA%/DevDesk/`
-- **Linux:** `~/.config/devdesk/`
+- Windows config directory: `%APPDATA%/DevDesk/`
+- Linux config directory: `~/.config/devdesk/`
 
-Files: `config.json`, `working_time.json`, `quick_access.json`, `notifications.json`, `cache/`.
+Files stored locally include:
 
-API tokens are **never** stored in JSON – only in the OS keyring.
+- `config.json`
+- `working_time.json`
+- `quick_access.json`
+- `notifications.json`
+- `cache/`
+- `logs/`
 
-### Integrations
+API tokens are never stored in JSON; they are managed via the system keyring.
 
-1. Open **Settings**
-2. Enable Jira / GitHub / Bitbucket
-3. Enter URL / email / token (or PAT / app password)
-4. Click **Test Connection**, then **Save All**
-5. Use **Refresh All** from the tray or the page buttons
+## Integrations
+
+1. Open Settings.
+2. Enable Jira, GitHub, and/or Bitbucket.
+3. Enter URLs, account information, and access tokens.
+4. Click Test Connection and Save All.
+5. Trigger Refresh All from the tray or UI.
 
 ## Development
 
 ```bash
+source .venv/bin/activate
 PYTHONPATH=. python -m pytest tests/ -v
 ```
 
-Packaging (requires PyInstaller):
+## Packaging and distribution
+
+Build the app package for the current OS:
 
 ```bash
 python scripts/build_linux.py
-python scripts/build_windows.py
 ```
+
+```powershell
+python scripts\build_windows.py
+```
+
+The build scripts generate distributable PyInstaller bundles under the project `dist/` folder. These scripts are the basis for release packaging and can be expanded with signing, installer generation, or artifact publishing.
+
+## Documentation
+
+The repo now includes a dedicated docs structure:
+
+- `docs/user-guide/` – feature usage and daily operations
+- `docs/architecture/` – service and module architecture
+- `docs/design/` – UI and data design notes
+- `docs/build/` – packaging and release guidance
+
+See `docs/README.md` for the index.
 
 ## Project status
 
-See `IMPLEMENTATION_PLAN.md` for phase completion details.
-
-Phases 1–4 are implemented. Phase 5 packaging scripts are present; full installer testing should be done on target desktops.
+See `IMPLEMENTATION_PLAN.md` for the current phase tracker and delivery roadmap.
 
 ## License
 

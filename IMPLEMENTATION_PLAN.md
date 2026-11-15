@@ -2,7 +2,7 @@
 
 ## Status Overview
 
-**Current Phase:** Phases 1–4 complete · Phase 5 scripts ready
+**Current Phase:** Phases 1–6 in progress
 
 **Last Updated:** 2026-11-14
 
@@ -39,21 +39,38 @@
 - Notification hooks for overdue issues and PR review requests
 - Tray **Refresh All** wired to `sync_all()`
 
-## Phase 5 – Packaging 🟡
+## Phase 5 – Packaging ✅
 
 - `scripts/build_linux.py` / `scripts/build_windows.py` (PyInstaller)
 - README with install/run/config instructions
-- Full desktop verification of tray + installers remains on target machines
+- Build scripts optimized for release output under `dist/`
+- PyInstaller dependency added to requirements for reproducible packaging
+
+## Phase 6 – Documentation & Delivery 🟡
+
+- Add `docs/` structure for usage, architecture, design, and build notes
+- Add release-oriented package generation flow for Windows and Linux
+- Document installation, config, troubleshooting, and deployment boundaries
+- Validate the project with automated tests before release
 
 ## Tests
 
-26 passed (storage, platform, working_time, quick_access, integration parsers)
+Project baseline should be validated with:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+PYTHONPATH=. python -m pytest tests/ -v
+```
 
 ## How to run
 
 ```bash
 cd devdesk
-pip install -r requirements.txt
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 PYTHONPATH=. python main.py
 ```
 
@@ -61,4 +78,4 @@ PYTHONPATH=. python main.py
 
 - Visual system-tray verification needs a real desktop session.
 - Bitbucket “PRs to review” is approximated via open PRs in configured workspaces.
-- PyInstaller builds must be validated on Windows 10/11 and target Linux distros.
+- PyInstaller cross-builds are best validated on target OS hosts; Windows generation from Linux requires a Windows-targeting toolchain or a Windows build machine.
